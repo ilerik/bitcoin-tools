@@ -17,14 +17,16 @@ fn main() {
     let matches = clap_app!(genaddress =>
             (version: "1.0")
             (author: "Ilya E. <erik.lite@gmail.com>, Sergei K. <sergant_chern@mail.ru")
-            (about: "Generates random Bitcoin address (base58 encoded) and corresponding private key (also base58).")
+            (about: "Generates random Bitcoin address (base58 encoded) and corresponding private key (base58 encoded)")
             (@arg attempts: -a +takes_value "Sets the maximum number of keypairs to be generated during search")
-            (@arg pattern: -p +takes_value "Specifies regular expression to be matched agains address string")
+            (@arg pattern: -p +takes_value "Specifies regular expression to be matched against address string")
+            (@arg truncate: -t +takes_value "Truncate address string to given lenght and match only first symbols")
             (@arg verbose: -v --verbose "Outputs generated addresses during search")
         ).get_matches();
 
     // extract arguments
     let attempts: i64 = matches.value_of("attempts").unwrap_or("0").parse().unwrap_or(0);
+    let truncate: usize = matches.value_of("truncate").unwrap_or("0").parse().unwrap_or(0);
     let pattern = matches.value_of("pattern").unwrap_or(r"*");
     let is_verbose = matches.is_present("verbose");
     let re = Regex::new(pattern).unwrap();
@@ -45,15 +47,16 @@ fn main() {
         // convert public key to Bitcoin address and private key to base58
         let address = Address::from_key(network, &pk, compressed);
         let privkey = Privkey::from_key(network, sk, compressed);
-        let address_base58str = address.to_base58check();
+        let mut address_base58str = address.to_base58check();
 
         //Output number of attempts and addresses generated in verbose mode
-        if is_verbose { println!("{} : {:?}", i, base58str) };
+        if is_verbose { println!("{} : {:?}", i, address_base58str) };
 
-        // Search for desired pattern
+        // Search for desired pattern and truncate if necessary
+        if (truncate != 0) { address_base58str.truncate(truncate) };
         if re.is_match(&address_base58str) {
             println!("Match was found for address {} and private key {}",
-             address_base58str,
+             address.to_base58check(),
              privkey.to_base58check());
             break;
         }
