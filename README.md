@@ -2,17 +2,16 @@
 Useful bitcoin tools and some rust code behind.
 
 ## Building
-1. Install nightly rust compiler (https://www.rust-lang.org/en-US/downloads.html)
- and if required cargo package manager as well (https://crates.io/install)
-2. Clone repository locally
-~~~ sh
+- Install nightly rust compiler (https://www.rust-lang.org/en-US/downloads.html) and if required cargo package manager as well (https://crates.io/install)
+- Clone repository locally
+``` sh
 git clone https://github.com/ilerik/bitcoin-tools.git
 cd bitcoin-tools
-~~~
-3. Build required tools from project folder using cargo
-~~~ sh
+```
+- Build required tools from project folder using cargo
+``` sh
 cargo build --release --bin <tool-name>
-~~~
+```
 
 ## Tools
 Below is the list of tools available.
