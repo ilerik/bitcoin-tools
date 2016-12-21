@@ -25,6 +25,6 @@ matches regular expression you specify with -p option.
 ~~~ sh
 cargo build --release --bin genaddress
 cd ./target/release/
-./genaddress -p 1User -v -a 10000 # usage example search for 1User* address
+./genaddress -p 1User -v -t 5 # usage example search for 1User* bitcoin address
 ~~~
 
