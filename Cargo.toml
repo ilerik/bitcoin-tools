@@ -8,8 +8,8 @@ name = "genaddress"
 path = "src/bin/genaddress.rs"
 
 [[bin]]
-name = "blockstat"
-path = "src/bin/blockstat.rs"
+name = "blockdetails"
+path = "src/bin/blockdetails.rs"
 
 [dependencies]
 bitcoin="0.9"
@@ -21,6 +21,7 @@ futures = "0.1"
 tokio-proto = { git = "https://github.com/tokio-rs/tokio-proto" }
 tokio-service = { git = "https://github.com/tokio-rs/tokio-service" }
 tokio-minihttp = { git = "https://github.com/tokio-rs/tokio-minihttp" }
+rustc-serialize = "0.3.22"
 serde = "0.8"
 serde_derive = "0.8"
 serde_json = "0.8"  # just for the JSON serialization, not required in general

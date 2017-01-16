@@ -15,3 +15,6 @@
 //! # Utility functions
 //!
 //! Functions needed by all parts of the Bitcoin tools library
+fn send_request() {
+    unimplemented!()
+}
