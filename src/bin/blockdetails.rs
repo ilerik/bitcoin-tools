@@ -98,13 +98,17 @@ fn main() {
            buf.extend_from_slice(data);
            Ok(data.len())
         }).unwrap();
-        transfer.perform().unwrap();
-        //println!("{:?}", transfer.response_code());
+        //transfer.perform().unwrap();
+        let request_a = session.perform(transfer);
+
+        // Actually perform operation
+        println!("Fetching block ... ", );
+        let mut a = lp.run(request_a).unwrap();
+        println!("Done. Response code {:?}", a.response_code());
     }
     let raw_block = buf;
     let decode: Result<Block, _> = deserialize(&raw_block[..]);
     let block = decode.unwrap();
-    //println!("{:?}", block);
 
     // get the block
     //let block = fetch_block(block_hash);
@@ -112,12 +116,12 @@ fn main() {
     // output its hash and some basic details
     let tx_count = block.txdata.len();
     println!("Details for block {:?} ", block_hash);
-    println!("  prev_blockhash : {:?}", block.header.prev_blockhash);
-    println!("  merkle_root : {:?}", block.header.merkle_root);
-    println!("  tx_count : {:?}", tx_count);
+    println!(" prev_blockhash : {:?}", block.header.prev_blockhash);
+    println!(" merkle_root : {:?}", block.header.merkle_root);
+    println!(" transactions count : {:?}", tx_count);
 
     // output some statistics on block transactions
-    println!("Transactions details: {:?}", tx_count);
+    println!("Transactions summary");
     process_tx( block.txdata[0].clone() ); // Always coinbase transaction
     for tx in &block.txdata[1..tx_count] {
         process_tx( tx.clone() );
