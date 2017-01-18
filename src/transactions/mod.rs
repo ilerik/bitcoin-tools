@@ -16,6 +16,10 @@
 //!
 //! Craftable transactions specifications and related functions
 
+/// Transaction details
+struct TransactionDetails {
+}
+
 /// A trait which allows us to craft transactions of given type and to match existing data
 trait Craftable {
 }
