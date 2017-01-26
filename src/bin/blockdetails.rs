@@ -57,7 +57,6 @@ struct BlockDetails {
     max_tx_amount : f64,
     min_tx_amount : f64
 }
-//serde_struct_impl!(BlockDetails, miner_reward, miner_fees, miner_entity, avg_tx_amount);
 
 /// fetch block data from bitcoin node using API
 fn fetch_block( node_ip : &str, block_hash : &str ) -> impl Future<Item = Block, Error = ()>
@@ -144,23 +143,29 @@ fn main() {
         miner_entity : "Unknown".to_string(),
         avg_tx_amount : 0.0,
         max_tx_amount : 0.0,
-        min_tx_amount : 0.0
+        min_tx_amount : 1E2000
     };
 
     for tx in &block.txdata[0..tx_count] {
         let tx_details = process_tx( tx.clone() );
         block_details.avg_tx_amount += tx_details.total_output_value;
-        println!("{:?}", serde_json::to_string(&tx_details).unwrap());
+        if (block_details.max_tx_amount < tx_details.total_output_value) {
+            block_details.max_tx_amount = tx_details.total_output_value;
+        }
+        if (block_details.min_tx_amount > tx_details.total_output_value) {
+            block_details.min_tx_amount = tx_details.total_output_value;
+        }
+        //println!("{:?}", serde_json::to_string(&tx_details).unwrap());
         block_details.tx_details.push(tx_details);
     }
 
     assert!(tx_count != 0);
     block_details.avg_tx_amount /= tx_count as f64;
 
+    // process coinbase transaction separately
     //process_tx( block.txdata[0].clone() ); // Always coinbase transaction
 
     // output its hash and some basic details
-
     println!("Details for block with hash {:?}", block_hash);
     println!("Previous block hash value : {:?}", block.header.prev_blockhash);
     println!("Merkle root value : {:?}", block.header.merkle_root);
@@ -169,4 +174,6 @@ fn main() {
     // output some statistics on block transactions
     println!("Transactions short summary:");
     println!("Average transfered value : {} BTC", block_details.avg_tx_amount / 10E8);
+    println!("Largest transfered value : {} BTC", block_details.max_tx_amount / 10E8);
+    println!("Smallest transfered value : {} BTC", block_details.min_tx_amount / 10E8);
 }
