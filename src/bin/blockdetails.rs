@@ -1,3 +1,7 @@
+#![feature(conservative_impl_trait)]
+#![feature(custom_derive)]
+#![feature(proc_macro)]
+
 extern crate bitcoin;
 extern crate secp256k1;
 extern crate rand;
@@ -8,6 +12,9 @@ extern crate futures;
 extern crate tokio_core;
 extern crate tokio_curl;
 extern crate env_logger;
+extern crate serde;
+#[macro_use] extern crate serde_json;
+#[macro_use] extern crate serde_derive;
 #[macro_use] extern crate clap;
 
 use secp256k1::{Secp256k1, ContextFlag};
@@ -25,24 +32,70 @@ use rand::{thread_rng};
 use regex::Regex;
 use curl::easy::Easy;
 use futures::Future;
+use futures::future;
 use tokio_core::reactor::Core;
 use tokio_curl::Session;
 
-/// fetch block data from bitcoin node using API
-fn fetch_block( block_hash : &str ) -> Block {
-    // connect to node
-    let node_addr : String = "172.17.0.2:8332".parse().unwrap();
-    let raw_block = "010000004ddccd549d28f385ab457e98d1b11ce80bfea2c5ab93015ade4973e400000000bf4473e53794beae34e64fccc471dace6ae544180816f89591894e0f417a914cd74d6e49ffff001d323b3a7b0201000000010000000000000000000000000000000000000000000000000000000000000000ffffffff0804ffff001d026e04ffffffff0100f2052a0100000043410446ef0102d1ec5240f0d061a4246c1bdef63fc3dbab7733052fbbf0ecd8f41fc26bf049ebb4f9527f374280259e7cfa99c48b0e3f39c51347a19a5819651503a5ac00000000010000000321f75f3139a013f50f315b23b0c9a2b6eac31e2bec98e5891c924664889942260000000049483045022100cb2c6b346a978ab8c61b18b5e9397755cbd17d6eb2fe0083ef32e067fa6c785a02206ce44e613f31d9a6b0517e46f3db1576e9812cc98d159bfdaf759a5014081b5c01ffffffff79cda0945903627c3da1f85fc95d0b8ee3e76ae0cfdc9a65d09744b1f8fc85430000000049483045022047957cdd957cfd0becd642f6b84d82f49b6cb4c51a91f49246908af7c3cfdf4a022100e96b46621f1bffcf5ea5982f88cef651e9354f5791602369bf5a82a6cd61a62501fffffffffe09f5fe3ffbf5ee97a54eb5e5069e9da6b4856ee86fc52938c2f979b0f38e82000000004847304402204165be9a4cbab8049e1af9723b96199bfd3e85f44c6b4c0177e3962686b26073022028f638da23fc003760861ad481ead4099312c60030d4cb57820ce4d33812a5ce01ffffffff01009d966b01000000434104ea1feff861b51fe3f5f8a3b12d0f4712db80e919548a80839fc47c6a21e66d957e9c5d8cd108c7a2d2324bad71f9904ac0ae7336507d785b17a2c115e427a32fac00000000".from_hex().unwrap();
-
-    // deserialize block data
-    let decode: Result<Block, _> = deserialize(&raw_block);
-    let real_decode = decode.unwrap();
-    return real_decode;
+/// TRansaction related additional data
+#[derive(Serialize, Deserialize)]
+struct TransactionDetails {
+    n_inputs : usize,
+    n_outputs : usize,
+    total_input_value : f64,
+    total_output_value : f64,
+    miner_fee : f64
 }
 
-fn process_tx( tx : Transaction) {
-    //println!("  version   : {:?}", tx.version);
-    //println!("  lock_time : {:?}", tx.lock_time);
+/// Block related additional data
+#[derive(Serialize, Deserialize)]
+struct BlockDetails {
+    tx_details : Vec<TransactionDetails>,
+    miner_reward : f64,
+    miner_fees : f64,
+    miner_entity : String,
+    avg_tx_amount : f64,
+    max_tx_amount : f64,
+    min_tx_amount : f64
+}
+//serde_struct_impl!(BlockDetails, miner_reward, miner_fees, miner_entity, avg_tx_amount);
+
+/// fetch block data from bitcoin node using API
+fn fetch_block( node_ip : &str, block_hash : &str ) -> impl Future<Item = Block, Error = ()>
+{
+    let mut request_url = "http://".to_string();
+    request_url.push_str(node_ip);
+    request_url.push_str(":8332/rest/block/");
+    request_url.push_str(&block_hash.to_string());
+    request_url.push_str(".bin");
+
+    let mut buf = Vec::new();
+    { // other way libcurl
+        let mut handle = Easy::new();
+        handle.url(&request_url).unwrap();
+        let mut transfer = handle.transfer();
+        transfer.write_function(|data| {
+           &buf.extend_from_slice(data);
+           Ok(data.len())
+        }).unwrap();
+        print!("Fetching block ... ", );
+        transfer.perform().unwrap();
+        println!("Done");
+    }
+    let raw_block = buf;
+    let decode: Result<Block, _> = deserialize(&raw_block[..]);
+    let block = decode.unwrap();
+
+    future::ok(block)
+}
+
+fn process_tx( tx : Transaction ) -> TransactionDetails {
+    let mut tx_details = TransactionDetails {
+        n_inputs : tx.input.len(),
+        n_outputs : tx.output.len(),
+        total_input_value : 0.0,
+        total_output_value : 0.0,
+        miner_fee : 0.0
+    };
 
     // process inputs
     for txIn in tx.input {
@@ -52,7 +105,10 @@ fn process_tx( tx : Transaction) {
     // process outputs
     for txOut in tx.output {
         //println!("{:?}", txOut);
+        tx_details.total_output_value += txOut.value as f64;
     }
+
+    tx_details // return
 }
 
 fn main() {
@@ -67,64 +123,50 @@ fn main() {
             (author: "Ilya E. <erik.lite@gmail.com>")
             (about: "Retrieves and parses block given it's hash. Performs analysis and outputs various details.")
             (@arg BLOCK_HASH: +required +takes_value "Block hash")
+            (@arg node: -n +takes_value "Specifies IP address of bitcoin node which has to have REST API accessible.")
         ).get_matches();
 
     // extract arguments
     let block_hash = matches.value_of("BLOCK_HASH").unwrap();
+    let node_ip = matches.value_of("node").unwrap_or("172.17.0.2");
     let network = Network::Bitcoin;
     let compressed = false;
 
-    // Once we've got our session available to us, execute our two requests.
-    // Each request will be a GET request and for now we just ignore the actual
-    // downloaded data.
-    let mut request_url = "http://172.17.0.2:8332/rest/block/".to_string();
-    request_url.push_str(&block_hash.to_string());
-    request_url.push_str(".bin");
-
-    //let mut a = Easy::new();
-    //a.get(true).unwrap();
-    //a.url(&request_url).unwrap();
-    //a.write_function(|data| Ok(data.len())).unwrap();
-    //let request_a = session.perform(a);
-    //let mut a = lp.run(request_a).unwrap();
-    //println!("{:?}", a.response_code());
-
-    let mut buf = Vec::new();
-    { // other way libcurl
-        let mut handle = Easy::new();
-        handle.url(&request_url).unwrap();
-        let mut transfer = handle.transfer();
-        transfer.write_function(|data| {
-           buf.extend_from_slice(data);
-           Ok(data.len())
-        }).unwrap();
-        //transfer.perform().unwrap();
-        let request_a = session.perform(transfer);
-
-        // Actually perform operation
-        println!("Fetching block ... ", );
-        let mut a = lp.run(request_a).unwrap();
-        println!("Done. Response code {:?}", a.response_code());
-    }
-    let raw_block = buf;
-    let decode: Result<Block, _> = deserialize(&raw_block[..]);
-    let block = decode.unwrap();
-
     // get the block
-    //let block = fetch_block(block_hash);
+    let block = lp.run(fetch_block( node_ip, block_hash)).unwrap();
+
+    // process all block transactions and extract statistics of intrest
+    let tx_count : usize = block.txdata.len();
+    let mut block_details = BlockDetails {
+        tx_details : Vec::with_capacity(tx_count),
+        miner_reward : 0.0,
+        miner_fees : 0.0,
+        miner_entity : "Unknown".to_string(),
+        avg_tx_amount : 0.0,
+        max_tx_amount : 0.0,
+        min_tx_amount : 0.0
+    };
+
+    for tx in &block.txdata[0..tx_count] {
+        let tx_details = process_tx( tx.clone() );
+        block_details.avg_tx_amount += tx_details.total_output_value;
+        println!("{:?}", serde_json::to_string(&tx_details).unwrap());
+        block_details.tx_details.push(tx_details);
+    }
+
+    assert!(tx_count != 0);
+    block_details.avg_tx_amount /= tx_count as f64;
+
+    //process_tx( block.txdata[0].clone() ); // Always coinbase transaction
 
     // output its hash and some basic details
-    let tx_count = block.txdata.len();
-    println!("Details for block {:?} ", block_hash);
-    println!(" prev_blockhash : {:?}", block.header.prev_blockhash);
-    println!(" merkle_root : {:?}", block.header.merkle_root);
-    println!(" transactions count : {:?}", tx_count);
+
+    println!("Details for block with hash {:?}", block_hash);
+    println!("Previous block hash value : {:?}", block.header.prev_blockhash);
+    println!("Merkle root value : {:?}", block.header.merkle_root);
+    println!("Transactions count : {:?}", tx_count);
 
     // output some statistics on block transactions
-    println!("Transactions summary");
-    process_tx( block.txdata[0].clone() ); // Always coinbase transaction
-    for tx in &block.txdata[1..tx_count] {
-        process_tx( tx.clone() );
-    }
-
+    println!("Transactions short summary:");
+    println!("Average transfered value : {} BTC", block_details.avg_tx_amount / 10E8);
 }

@@ -29,6 +29,7 @@
 
 // Experimental features we need
 #![cfg_attr(all(test, feature = "unstable"), feature(test))]
+#![feature(conservative_impl_trait)]
 
 // Clippy whitelist
 #![cfg_attr(feature = "clippy", allow(needless_range_loop))] // suggests making a big mess of array newtypes
