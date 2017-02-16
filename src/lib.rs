@@ -55,6 +55,9 @@ extern crate env_logger;
 extern crate tokio_minihttp;
 extern crate tokio_proto;
 extern crate tokio_service;
+extern crate curl;
+extern crate tokio_core;
+extern crate tokio_curl;
 
 pub mod transactions;
 pub mod util;

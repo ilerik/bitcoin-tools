@@ -11,7 +11,12 @@ path = "src/bin/genaddress.rs"
 name = "blockdetails"
 path = "src/bin/blockdetails.rs"
 
+[[bin]]
+name = "marketdetails"
+path = "src/bin/marketdetails.rs"
+
 [dependencies]
+rust-crypto = "^0.2"
 bitcoin="0.9"
 secp256k1 = "0.6"
 rand="0.3.15"
